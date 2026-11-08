@@ -1,0 +1,1289 @@
+﻿========== APP.PY ==========
+
+from flask import Flask, render_template, request, redirect, url_for, flash
+from pathlib import Path
+import pandas as pd
+import joblib
+import sqlite3
+
+# ==========================================================
+# STUDENT LEARNING SUPPORT AND INTERVENTION TRACKING SYSTEM
+# FLASK BACKEND
+# ==========================================================
+
+app = Flask(__name__)
+app.secret_key = "student-support-local-prototype-key"
+
+BASE_DIR = Path(__file__).resolve().parent
+
+MODEL_PATH = BASE_DIR / "models" / "best_student_risk_model.pkl"
+TEST_DATA_PATH = BASE_DIR / "data" / "processed" / "ml" / "test_dataset.csv"
+IMPORTANCE_PATH = BASE_DIR / "reports" / "permutation_feature_importance.csv"
+
+DATABASE_DIR = BASE_DIR / "database"
+DATABASE_PATH = DATABASE_DIR / "interventions.db"
+
+DATABASE_DIR.mkdir(parents=True, exist_ok=True)
+
+# ==========================================================
+# 1. LOAD MODEL AND DATASET
+# ==========================================================
+
+print("=" * 65)
+print("STUDENT LEARNING SUPPORT SYSTEM")
+print("STARTING FLASK APPLICATION")
+print("=" * 65)
+
+model = joblib.load(MODEL_PATH)
+
+students_df = pd.read_csv(TEST_DATA_PATH)
+
+# Model input features
+FEATURES = [
+    "code_module",
+    "code_presentation",
+    "cutoff_day",
+    "num_of_prev_attempts",
+    "studied_credits",
+    "early_total_clicks",
+    "early_active_days",
+    "early_on_time_submissions",
+    "early_late_submissions"
+]
+
+# Validate required columns
+missing_columns = [
+    column for column in FEATURES + ["id_student"]
+    if column not in students_df.columns
+]
+
+if missing_columns:
+    raise ValueError(
+        f"Missing required columns: {missing_columns}"
+    )
+
+# Reset index for stable record identification
+students_df = students_df.reset_index(drop=True)
+
+# ==========================================================
+# 2. GENERATE PREDICTIONS
+# ==========================================================
+
+print("\nGenerating student predictions...")
+
+X = students_df[FEATURES]
+
+predictions = model.predict(X)
+probabilities = model.predict_proba(X)
+
+class_names = list(model.classes_)
+
+students_df["predicted_outcome"] = predictions
+
+for index, class_name in enumerate(class_names):
+    students_df[f"prob_{class_name}"] = probabilities[:, index]
+
+# Flag students predicted as Fail or Withdrawn
+students_df["needs_attention"] = (
+    students_df["predicted_outcome"].isin(["Fail", "Withdrawn"])
+)
+
+print("Total records:", len(students_df))
+print("Predictions generated successfully.")
+
+# ==========================================================
+# 3. DATABASE CONNECTION
+# ==========================================================
+
+def get_db_connection():
+
+    connection = sqlite3.connect(DATABASE_PATH)
+    connection.row_factory = sqlite3.Row
+
+    return connection
+
+
+def initialize_database():
+
+    connection = get_db_connection()
+
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS interventions (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            record_id INTEGER NOT NULL,
+
+            student_id TEXT NOT NULL,
+
+            intervention_type TEXT NOT NULL,
+
+            intervention_date TEXT NOT NULL,
+
+            faculty_remarks TEXT,
+
+            follow_up_status TEXT NOT NULL,
+
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+        )
+    """)
+
+    connection.commit()
+    connection.close()
+
+
+initialize_database()
+
+# ==========================================================
+# 4. HELPER FUNCTIONS
+# ==========================================================
+
+def get_student_record(record_id):
+
+    if record_id < 0 or record_id >= len(students_df):
+        return None
+
+    row = students_df.iloc[record_id]
+
+    record = row.to_dict()
+
+    record["record_id"] = record_id
+
+    record["student_id"] = str(row["id_student"])
+
+    record["needs_attention"] = bool(
+        row["needs_attention"]
+    )
+
+    return record
+
+
+def get_interventions(record_id):
+
+    connection = get_db_connection()
+
+    interventions = connection.execute(
+        """
+        SELECT *
+        FROM interventions
+        WHERE record_id = ?
+        ORDER BY intervention_date DESC, id DESC
+        """,
+        (record_id,)
+    ).fetchall()
+
+    connection.close()
+
+    return interventions
+
+
+# ==========================================================
+# 5. FACULTY DASHBOARD
+# ==========================================================
+
+@app.route("/")
+def dashboard():
+
+    total_students = len(students_df)
+
+    outcome_counts = (
+        students_df["predicted_outcome"]
+        .value_counts()
+        .reindex(class_names, fill_value=0)
+        .to_dict()
+    )
+
+    attention_count = int(
+        students_df["needs_attention"].sum()
+    )
+
+    connection = get_db_connection()
+
+    intervention_count = connection.execute(
+        "SELECT COUNT(*) FROM interventions"
+    ).fetchone()[0]
+
+    recent_interventions = connection.execute(
+        """
+        SELECT *
+        FROM interventions
+        ORDER BY created_at DESC
+        LIMIT 5
+        """
+    ).fetchall()
+
+    connection.close()
+
+    # Search and filter
+    search = request.args.get("search", "").strip()
+
+    selected_outcome = request.args.get(
+        "outcome", "All"
+    )
+
+    filtered_df = students_df.copy()
+
+    if search:
+
+        filtered_df = filtered_df[
+            filtered_df["id_student"]
+            .astype(str)
+            .str.contains(search, regex=False)
+        ]
+
+    if selected_outcome != "All":
+
+        filtered_df = filtered_df[
+            filtered_df["predicted_outcome"]
+            == selected_outcome
+        ]
+
+    # Pagination
+    page = request.args.get("page", 1, type=int)
+    page = max(page, 1)
+
+    per_page = 25
+
+    total_filtered = len(filtered_df)
+
+    total_pages = max(
+        1,
+        (total_filtered + per_page - 1) // per_page
+    )
+
+    page = min(page, total_pages)
+
+    start = (page - 1) * per_page
+
+    page_df = filtered_df.iloc[
+        start:start + per_page
+    ]
+
+    student_records = []
+
+    for record_id, row in page_df.iterrows():
+
+        probabilities_dict = {
+            class_name: round(
+                float(row[f"prob_{class_name}"]) * 100, 2
+            )
+            for class_name in class_names
+        }
+
+        student_records.append({
+            "record_id": int(record_id),
+            "student_id": str(row["id_student"]),
+            "module": row["code_module"],
+            "presentation": row["code_presentation"],
+            "predicted_outcome": row["predicted_outcome"],
+            "needs_attention": bool(row["needs_attention"]),
+            "confidence": max(probabilities_dict.values()),
+        })
+
+    # Explainability report
+    importance_data = []
+
+    if IMPORTANCE_PATH.exists():
+
+        importance_df = pd.read_csv(IMPORTANCE_PATH)
+
+        importance_data = importance_df.to_dict(
+            orient="records"
+        )
+
+    return render_template(
+        "dashboard.html",
+
+        total_students=total_students,
+        outcome_counts=outcome_counts,
+        attention_count=attention_count,
+        intervention_count=intervention_count,
+
+        students=student_records,
+
+        search=search,
+        selected_outcome=selected_outcome,
+
+        page=page,
+        total_pages=total_pages,
+        total_filtered=total_filtered,
+
+        class_names=class_names,
+
+        importance_data=importance_data,
+
+        recent_interventions=recent_interventions
+    )
+
+
+# ==========================================================
+# 6. INDIVIDUAL STUDENT DETAILS
+# ==========================================================
+
+@app.route("/student/<int:record_id>")
+def student_detail(record_id):
+
+    student = get_student_record(record_id)
+
+    if student is None:
+        return "Student record not found", 404
+
+    probabilities_dict = {}
+
+    for class_name in class_names:
+
+        probabilities_dict[class_name] = round(
+            float(student[f"prob_{class_name}"]) * 100,
+            2
+        )
+
+    interventions = get_interventions(record_id)
+
+    return render_template(
+        "student.html",
+
+        student=student,
+
+        probabilities=probabilities_dict,
+
+        interventions=interventions
+    )
+
+
+# ==========================================================
+# 7. SAVE FACULTY INTERVENTION
+# ==========================================================
+
+@app.route(
+    "/student/<int:record_id>/intervention",
+    methods=["POST"]
+)
+def add_intervention(record_id):
+
+    student = get_student_record(record_id)
+
+    if student is None:
+        return "Student record not found", 404
+
+    intervention_type = request.form.get(
+        "intervention_type", ""
+    ).strip()
+
+    intervention_date = request.form.get(
+        "intervention_date", ""
+    ).strip()
+
+    remarks = request.form.get(
+        "faculty_remarks", ""
+    ).strip()
+
+    follow_up_status = request.form.get(
+        "follow_up_status", "Pending"
+    ).strip()
+
+    allowed_types = [
+        "Academic Counselling",
+        "Assignment Support",
+        "Study Plan",
+        "Faculty Meeting",
+        "Additional Learning Resources",
+        "Other"
+    ]
+
+    allowed_statuses = [
+        "Pending",
+        "In Progress",
+        "Completed"
+    ]
+
+    if intervention_type not in allowed_types:
+
+        flash("Please select a valid intervention type.", "error")
+
+        return redirect(
+            url_for("student_detail", record_id=record_id)
+        )
+
+    if follow_up_status not in allowed_statuses:
+
+        flash("Please select a valid follow-up status.", "error")
+
+        return redirect(
+            url_for("student_detail", record_id=record_id)
+        )
+
+    if not intervention_date or not remarks:
+
+        flash("Please complete the date and faculty remarks.", "error")
+
+        return redirect(
+            url_for("student_detail", record_id=record_id)
+        )
+
+    # Validate date
+    try:
+        pd.to_datetime(
+            intervention_date,
+            format="%Y-%m-%d",
+            errors="raise"
+        )
+    except ValueError:
+
+        flash("Invalid intervention date.", "error")
+
+        return redirect(
+            url_for("student_detail", record_id=record_id)
+        )
+
+    connection = get_db_connection()
+
+    connection.execute(
+        """
+        INSERT INTO interventions
+        (
+            record_id,
+            student_id,
+            intervention_type,
+            intervention_date,
+            faculty_remarks,
+            follow_up_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record_id,
+            student["student_id"],
+            intervention_type,
+            intervention_date,
+            remarks,
+            follow_up_status
+        )
+    )
+
+    connection.commit()
+    connection.close()
+
+    flash("Intervention recorded successfully.", "success")
+
+    return redirect(
+        url_for("student_detail", record_id=record_id)
+    )
+
+
+# ==========================================================
+# 8. RUN APPLICATION
+# ==========================================================
+
+if __name__ == "__main__":
+
+    print("\n" + "=" * 65)
+    print("FLASK APPLICATION READY")
+    print("=" * 65)
+
+    print("Dashboard: http://127.0.0.1:5000")
+    print("Database:", DATABASE_PATH)
+
+    app.run(
+        host="127.0.0.1",
+        port=5000,
+        debug=True
+    )
+========== STYLE.CSS ==========
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --primary: #5368b5;
+    --primary-dark: #3d519c;
+    --background: #f5f7fb;
+    --surface: #ffffff;
+    --text: #263149;
+    --muted: #7d879b;
+    --border: #e9edf4;
+    --green: #26966d;
+    --orange: #d89431;
+    --red: #c85e65;
+    --purple: #8167c8;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: var(--background);
+    color: var(--text);
+    font-size: 14px;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+.layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* SIDEBAR */
+
+.sidebar {
+    width: 245px;
+    background: #ffffff;
+    border-right: 1px solid var(--border);
+    padding: 28px 18px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 48px;
+    padding: 0 5px;
+}
+
+.brand-icon {
+    background: var(--primary);
+    color: white;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.brand h2 {
+    font-size: 15px;
+}
+
+.brand small,
+.faculty-profile small {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.sidebar nav {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.nav-link {
+    padding: 13px 14px;
+    border-radius: 9px;
+    color: #69748a;
+    display: flex;
+    gap: 13px;
+    align-items: center;
+    font-weight: 500;
+}
+
+.nav-link span {
+    font-size: 18px;
+}
+
+.nav-link:hover,
+.nav-link.active {
+    background: #eef1fc;
+    color: var(--primary);
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding: 15px 5px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.status-dot {
+    display: inline-block;
+    height: 8px;
+    width: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    margin-right: 7px;
+}
+
+/* MAIN CONTENT */
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+    padding: 30px 38px;
+}
+
+.topbar,
+.faculty-profile,
+.panel-heading,
+.stat-top,
+.pagination,
+.probability-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.topbar {
+    margin-bottom: 27px;
+}
+
+.topbar h1 {
+    font-size: 25px;
+}
+
+.topbar p,
+.welcome-section p,
+.panel-heading p,
+.section-description {
+    color: var(--muted);
+    margin-top: 7px;
+    line-height: 1.6;
+}
+
+.faculty-profile {
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.profile-avatar {
+    background: #e9edfb;
+    color: var(--primary);
+    width: 39px;
+    height: 39px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+}
+
+/* WELCOME */
+
+.welcome-section {
+    background: linear-gradient(115deg, #5368b5, #7587ca);
+    color: white;
+    padding: 26px 30px;
+    border-radius: 13px;
+    margin-bottom: 23px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.welcome-section h2 {
+    font-size: 19px;
+    margin-bottom: 8px;
+}
+
+.welcome-section p {
+    color: #edf0ff;
+    margin: 0;
+}
+
+.welcome-icon {
+    font-size: 45px;
+    opacity: 0.8;
+}
+
+/* STATISTICS */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 17px;
+    margin-bottom: 23px;
+}
+
+.stat-card,
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 21px;
+}
+
+.stat-card h2 {
+    font-size: 27px;
+    margin: 16px 0 6px;
+}
+
+.stat-card small {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.stat-top {
+    color: #68748b;
+    font-size: 13px;
+}
+
+.stat-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    font-size: 17px;
+}
+
+.blue {
+    color: #5368b5;
+    background: #eef1fc;
+}
+
+.green {
+    color: #26966d;
+    background: #e8f6ef;
+}
+
+.orange {
+    color: #d89431;
+    background: #fff5e6;
+}
+
+.purple {
+    color: #8167c8;
+    background: #f0ecfc;
+}
+
+/* CHARTS */
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 18px;
+    margin-bottom: 22px;
+}
+
+.panel-heading {
+    margin-bottom: 21px;
+    gap: 10px;
+}
+
+.panel-heading h3 {
+    font-size: 16px;
+}
+
+.chart-container {
+    height: 270px;
+    position: relative;
+}
+
+.outcome-list {
+    display: flex;
+    flex-direction: column;
+    gap: 21px;
+    padding: 12px 5px;
+}
+
+.outcome-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.outcome-row strong {
+    margin-left: auto;
+}
+
+.outcome-dot {
+    height: 10px;
+    width: 10px;
+    border-radius: 50%;
+}
+
+.outcome-dot.pass {
+    background: var(--green);
+}
+
+.outcome-dot.fail {
+    background: var(--orange);
+}
+
+.outcome-dot.distinction {
+    background: #6478ce;
+}
+
+.outcome-dot.withdrawn {
+    background: var(--red);
+}
+
+/* STUDENT TABLE */
+
+.students-panel {
+    margin-bottom: 22px;
+}
+
+.record-count {
+    background: #eef1fc;
+    color: var(--primary);
+    padding: 7px 11px;
+    border-radius: 7px;
+    font-size: 12px;
+}
+
+.filter-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    outline: none;
+    background: white;
+    color: var(--text);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary);
+}
+
+.filter-form input {
+    flex: 1;
+    min-width: 160px;
+}
+
+.filter-form select {
+    min-width: 150px;
+}
+
+.primary-button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    padding: 11px 17px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.primary-button:hover {
+    background: var(--primary-dark);
+}
+
+.reset-link {
+    color: var(--muted);
+    padding: 11px 8px;
+}
+
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    white-space: nowrap;
+}
+
+th {
+    background: #f7f8fb;
+    color: #7b8599;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 14px 12px;
+}
+
+td {
+    border-bottom: 1px solid var(--border);
+    padding: 15px 12px;
+    font-size: 12px;
+}
+
+tbody tr:hover {
+    background: #fafbfe;
+}
+
+.outcome-badge {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.outcome-badge.pass {
+    background: #e8f6ef;
+    color: #26966d;
+}
+
+.outcome-badge.fail {
+    background: #fff3e2;
+    color: #bc7d22;
+}
+
+.outcome-badge.distinction {
+    background: #edf0ff;
+    color: #5368b5;
+}
+
+.outcome-badge.withdrawn {
+    background: #fdebed;
+    color: #c85e65;
+}
+
+.attention-label {
+    color: #c17d23;
+    font-weight: 600;
+}
+
+.normal-label {
+    color: var(--green);
+}
+
+.view-link {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.empty-message {
+    padding: 25px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.pagination {
+    padding-top: 18px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.pagination div {
+    display: flex;
+    gap: 17px;
+}
+
+.pagination a {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* EXPLAINABILITY */
+
+.insights-panel {
+    margin-bottom: 22px;
+}
+
+.importance-chart {
+    height: 340px;
+}
+
+.note {
+    margin-top: 18px;
+    padding: 12px;
+    background: #f5f7fb;
+    border-radius: 7px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 11px;
+}
+
+/* FOOTER */
+
+.footer {
+    text-align: center;
+    color: var(--muted);
+    line-height: 1.9;
+    padding: 25px 0;
+    font-size: 12px;
+}
+
+/* STUDENT DETAILS */
+
+.detail-container {
+    max-width: 1050px;
+    margin: 35px auto;
+    padding: 0 22px;
+}
+
+.back-link {
+    display: inline-block;
+    color: var(--primary);
+    margin-bottom: 27px;
+    font-weight: 600;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.detail-header h1 {
+    font-size: 26px;
+    margin: 7px 0;
+}
+
+.detail-header p {
+    color: var(--muted);
+}
+
+.eyebrow {
+    font-size: 10px;
+    color: var(--primary) !important;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+}
+
+.detail-container .panel {
+    margin-bottom: 22px;
+}
+
+.detail-container .panel h2 {
+    font-size: 17px;
+}
+
+.section-description {
+    margin-bottom: 23px;
+    font-size: 12px;
+}
+
+/* PROBABILITIES */
+
+.probability-list {
+    display: flex;
+    flex-direction: column;
+    gap: 19px;
+}
+
+.probability-heading {
+    margin-bottom: 8px;
+}
+
+.progress-track {
+    width: 100%;
+    height: 10px;
+    border-radius: 10px;
+    background: #edf0f5;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 10px;
+}
+
+.progress-fill.pass {
+    background: var(--green);
+}
+
+.progress-fill.fail {
+    background: var(--orange);
+}
+
+.progress-fill.distinction {
+    background: #6478ce;
+}
+
+.progress-fill.withdrawn {
+    background: var(--red);
+}
+
+/* NOTICES */
+
+.attention-notice,
+.normal-notice {
+    padding: 15px;
+    margin-top: 24px;
+    border-radius: 8px;
+    line-height: 1.7;
+}
+
+.attention-notice {
+    background: #fff5e9;
+    color: #9c671f;
+}
+
+.normal-notice {
+    background: #eaf6ef;
+    color: #247b5c;
+}
+
+.attention-notice p {
+    margin-top: 5px;
+}
+
+/* INDICATORS */
+
+.indicator-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 13px;
+}
+
+.indicator-card {
+    background: #f7f8fc;
+    padding: 17px;
+    border-radius: 8px;
+}
+
+.indicator-card span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-bottom: 9px;
+}
+
+.indicator-card strong {
+    font-size: 21px;
+}
+
+/* INTERVENTION FORM */
+
+.intervention-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.intervention-form button {
+    justify-self: start;
+}
+
+/* FLASH */
+
+.flash-message {
+    padding: 13px;
+    border-radius: 7px;
+    margin-bottom: 17px;
+}
+
+.flash-message.success {
+    background: #e8f6ef;
+    color: #247b5c;
+}
+
+.flash-message.error {
+    background: #fdebed;
+    color: #b84f59;
+}
+
+.disclaimer {
+    background: #fff6e8;
+    color: #91621e;
+    border-radius: 9px;
+    padding: 16px;
+    line-height: 1.7;
+    margin-bottom: 25px;
+    font-size: 12px;
+}
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 1100px) {
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .sidebar {
+        width: 200px;
+    }
+
+    .main-content {
+        padding: 25px;
+    }
+
+}
+
+@media (max-width: 750px) {
+
+    .sidebar {
+        display: none;
+    }
+
+    .main-content {
+        padding: 17px;
+    }
+
+    .chart-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .indicator-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .topbar h1 {
+        font-size: 20px;
+    }
+
+    .faculty-profile {
+        display: none;
+    }
+
+    .welcome-section h2 {
+        font-size: 16px;
+    }
+
+}
+
+@media (max-width: 480px) {
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .indicator-grid,
+    .intervention-form {
+        grid-template-columns: 1fr;
+    }
+
+    .full-width {
+        grid-column: auto;
+    }
+
+    .detail-header {
+        align-items: flex-start;
+        gap: 12px;
+        flex-direction: column;
+    }
+
+}

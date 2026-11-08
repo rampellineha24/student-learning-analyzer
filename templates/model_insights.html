@@ -1,0 +1,239 @@
+﻿
+{% extends "base.html" %}
+
+{% block title %}Model Insights | Student Learning Support{% endblock %}
+{% block page_heading %}Model Insights{% endblock %}
+{% block page_subtitle %}Machine learning performance and prediction explainability{% endblock %}
+
+{% block content %}
+
+<section class="panel">
+
+    <div class="panel-heading">
+        <div>
+            <h3>Model Performance Comparison</h3>
+            <p>Evaluation of the trained machine learning models</p>
+        </div>
+    </div>
+
+    {% if model_comparison %}
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Accuracy</th>
+                    <th>Macro Precision</th>
+                    <th>Macro Recall</th>
+                    <th>Macro F1</th>
+                    <th>Weighted F1</th>
+                    <th>Training Time (s)</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for model in model_comparison %}
+
+                <tr>
+
+                    <td><strong>{{ model['Model'] }}</strong></td>
+
+                    <td>{{ "%.2f"|format(model['Accuracy']|float * 100) }}%</td>
+
+                    <td>{{ "%.4f"|format(model['Macro Precision']|float) }}</td>
+
+                    <td>{{ "%.4f"|format(model['Macro Recall']|float) }}</td>
+
+                    <td>{{ "%.4f"|format(model['Macro F1']|float) }}</td>
+
+                    <td>{{ "%.4f"|format(model['Weighted F1']|float) }}</td>
+
+                    <td>{{ "%.3f"|format(model['Training Time (seconds)']|float) }}</td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <p class="empty-message">
+        Model comparison report is not available.
+        Please check reports/model_comparison.csv.
+    </p>
+
+    {% endif %}
+
+</section>
+
+
+<!-- SELECTED MODEL -->
+
+<section class="panel">
+
+    <h3>Selected Model</h3>
+
+    <p>
+        <strong>Random Forest</strong> —
+        selected based on its performance among the evaluated models.
+    </p>
+
+    <p class="note">
+        The displayed comparison metrics describe model evaluation
+        performance. Prediction confidence for an individual student
+        is shown separately in the student details page.
+    </p>
+
+</section>
+
+
+<!-- FEATURE IMPORTANCE -->
+
+<section class="panel">
+
+    <div class="panel-heading">
+        <div>
+            <h3>Feature Importance and Explainability</h3>
+            <p>Global permutation feature importance</p>
+        </div>
+    </div>
+
+    {% if importance_data %}
+
+    <div class="chart-container importance-chart">
+
+        <canvas
+            id="modelImportanceChart"
+            data-labels='{{ importance_data | map(attribute="Feature") | list | tojson }}'
+            data-values='{{ importance_data | map(attribute="Importance Mean") | list | tojson }}'>
+        </canvas>
+
+    </div>
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    {% for key in importance_data[0].keys() %}
+                    <th>{{ key|replace('_', ' ')|title }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for item in importance_data %}
+
+                <tr>
+
+                    {% for value in item.values() %}
+
+                    <td>{{ value }}</td>
+
+                    {% endfor %}
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <p class="empty-message">
+        Feature importance report is not available.
+    </p>
+
+    {% endif %}
+
+    <p class="note">
+        Permutation feature importance measures how model performance
+        changes when a feature is shuffled. It describes global
+        predictive contribution and does not establish causation
+        or explain an individual student's prediction.
+    </p>
+
+</section>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const canvas = document.getElementById("modelImportanceChart");
+
+    if (canvas && typeof Chart !== "undefined") {
+
+        const labels = JSON.parse(canvas.dataset.labels);
+        const values = JSON.parse(canvas.dataset.values);
+
+        new Chart(canvas, {
+
+            type: "bar",
+
+            data: {
+
+                labels: labels,
+
+                datasets: [{
+                    label: "Importance Mean",
+                    data: values,
+                    backgroundColor: "#6478ce",
+                    borderRadius: 5
+                }]
+
+            },
+
+            options: {
+
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Decrease in Macro F1"
+                        }
+                    }
+                }
+
+            }
+
+        });
+
+    }
+
+});
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,38 @@
+MACHINE LEARNING FEATURE INSPECTION
+======================================================================
+
+Dataset shape: (24592, 19)
+
+ALL COLUMNS:
+code_module: str
+code_presentation: str
+id_student: int64
+cutoff_day: int64
+module_presentation_length: int64
+gender: str
+region: str
+highest_education: str
+imd_band: str
+age_band: str
+num_of_prev_attempts: int64
+studied_credits: int64
+disability: str
+final_result: str
+early_total_clicks: int64
+early_active_days: int64
+early_submitted_assessments: int64
+early_late_submissions: int64
+early_on_time_submissions: int64
+
+CATEGORICAL FEATURES:
+['code_module', 'code_presentation', 'gender', 'region', 'highest_education', 'imd_band', 'age_band', 'disability', 'final_result']
+
+NUMERICAL FEATURES:
+['id_student', 'cutoff_day', 'module_presentation_length', 'num_of_prev_attempts', 'studied_credits', 'early_total_clicks', 'early_active_days', 'early_submitted_assessments', 'early_late_submissions', 'early_on_time_submissions']
+
+TARGET DISTRIBUTION:
+final_result
+Pass           12360
+Fail            7038
+Distinction     3024
+Withdrawn       2170

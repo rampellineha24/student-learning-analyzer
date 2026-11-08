@@ -1,0 +1,167 @@
+
+======================================================================
+1. DATASET OVERVIEW
+======================================================================
+Total records: 24592
+Total columns: 19
+
+======================================================================
+2. STUDENT RECORD DISTRIBUTION
+======================================================================
+Unique students: 22698
+Students with one record: 20855
+Students with multiple records: 1843
+Maximum records for one student: 4
+
+Records per student distribution:
+1    20855
+2     1794
+3       47
+4        2
+
+======================================================================
+3. CUTOFF DAY AND COURSE LENGTH
+======================================================================
+Correlation: 0.9993
+Unique cutoff days: 5
+Unique course lengths: 7
+Minimum difference: 117
+Maximum difference: 135
+Unique differences: 6
+
+======================================================================
+4. ASSESSMENT SUBMISSION RELATIONSHIP
+======================================================================
+Records where total submissions equal on-time plus late submissions: 24592
+Records where the values do not match: 0
+Minimum difference: 0
+Maximum difference: 0
+
+Correlation matrix:
+                             early_submitted_assessments  early_on_time_submissions  early_late_submissions
+early_submitted_assessments                        1.000                      0.775                   0.463
+early_on_time_submissions                          0.775                      1.000                  -0.201
+early_late_submissions                             0.463                     -0.201                   1.000
+
+======================================================================
+5. IMD BAND SPECIAL VALUE CHECK
+======================================================================
+IMD band value counts:
+imd_band
+30-40%     2677
+20-30%     2602
+10-20      2510
+50-60%     2419
+40-50%     2412
+0-10%      2319
+70-80%     2267
+60-70%     2250
+80-90%     2173
+90-100%    2023
+?           940
+
+Number of '?' values: 940
+Percentage of dataset: 3.82%
+
+======================================================================
+6. CATEGORICAL FEATURE DISTRIBUTIONS
+======================================================================
+
+code_module:
+code_module
+BBB    5912
+FFF    5845
+DDD    4618
+CCC    2863
+EEE    2345
+GGG    2332
+AAA     677
+
+code_presentation:
+code_presentation
+2014J    8159
+2013J    6948
+2014B    5797
+2013B    3688
+
+gender:
+gender
+M    13445
+F    11147
+
+region:
+region
+Scotland                2804
+East Anglian Region     2529
+South Region            2362
+London Region           2324
+North Western Region    2068
+West Midlands Region    1858
+South West Region       1828
+Wales                   1715
+East Midlands Region    1700
+South East Region       1587
+Yorkshire Region        1465
+North Region            1365
+Ireland                  987
+
+highest_education:
+highest_education
+A Level or Equivalent          10901
+Lower Than A Level              9471
+HE Qualification                3741
+Post Graduate Qualification      260
+No Formal quals                  219
+
+age_band:
+age_band
+0-35     17095
+35-55     7322
+55<=       175
+
+disability:
+disability
+N    22380
+Y     2212
+
+======================================================================
+7. OUTCOME DISTRIBUTION ACROSS GROUPS
+======================================================================
+
+Final result distribution by gender:
+final_result  Distinction   Fail   Pass  Withdrawn
+gender                                            
+F                   12.51  27.77  51.44       8.28
+M                   12.12  29.32  49.28       9.27
+
+Final result distribution by age_band:
+final_result  Distinction   Fail   Pass  Withdrawn
+age_band                                          
+0-35                10.90  30.54  49.54       9.02
+35-55               15.30  24.42  51.88       8.40
+55<=                23.43  16.57  52.57       7.43
+
+Final result distribution by highest_education:
+final_result                 Distinction   Fail   Pass  Withdrawn
+highest_education                                                
+A Level or Equivalent              13.72  24.78  53.31       8.19
+HE Qualification                   18.63  21.04  52.39       7.94
+Lower Than A Level                  7.68  36.12  46.30       9.90
+No Formal quals                     7.31  43.38  39.73       9.59
+Post Graduate Qualification        33.85  13.08  45.00       8.08
+
+Final result distribution by disability:
+final_result  Distinction   Fail   Pass  Withdrawn
+disability                                        
+N                   12.52  28.27  50.83       8.38
+Y                   10.08  32.14  44.48      13.29
+
+======================================================================
+8. AUDIT NOTES
+======================================================================
+1. Student identifiers are required for grouped train-test splitting, not as model inputs.
+2. Highly correlated features should be investigated before deciding which features to retain.
+3. Submission counts may contain mathematical redundancy.
+4. Special '?' values in IMD band require appropriate missing-category treatment.
+5. Demographic features require careful consideration and fairness evaluation before model inclusion.
+6. Correlation and group differences do not establish causation.

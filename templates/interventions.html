@@ -1,0 +1,142 @@
+
+{% extends "base.html" %}
+
+{% block title %}Interventions | Student Learning Support{% endblock %}
+{% block page_heading %}Interventions{% endblock %}
+{% block page_subtitle %}Monitor and track faculty academic support activities{% endblock %}
+
+{% block content %}
+
+<!-- INTERVENTION SUMMARY -->
+
+<section class="stats-grid">
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Total Interventions</span>
+            <span class="stat-icon blue">☷</span>
+        </div>
+        <h2>{{ total_interventions }}</h2>
+        <small>All recorded support activities</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Pending</span>
+            <span class="stat-icon orange">!</span>
+        </div>
+        <h2>{{ pending_count }}</h2>
+        <small>Awaiting follow-up</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>In Progress</span>
+            <span class="stat-icon blue">↻</span>
+        </div>
+        <h2>{{ in_progress_count }}</h2>
+        <small>Support activities ongoing</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Completed</span>
+            <span class="stat-icon green">✓</span>
+        </div>
+        <h2>{{ completed_count }}</h2>
+        <small>Completed support activities</small>
+    </div>
+
+</section>
+
+
+<!-- INTERVENTION RECORDS -->
+
+<section class="panel">
+
+    <div class="panel-heading">
+
+        <div>
+            <h3>Faculty Intervention Records</h3>
+            <p>History of academic support activities</p>
+        </div>
+
+        <span class="record-count">
+            {{ total_interventions }} records
+        </span>
+
+    </div>
+
+    {% if interventions %}
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Intervention Type</th>
+                    <th>Date</th>
+                    <th>Faculty Remarks</th>
+                    <th>Follow-up Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for item in interventions %}
+
+                <tr>
+
+                    <td>
+                        <strong>{{ item['student_id'] }}</strong>
+                    </td>
+
+                    <td>{{ item['intervention_type'] }}</td>
+
+                    <td>{{ item['intervention_date'] }}</td>
+
+                    <td>{{ item['faculty_remarks'] }}</td>
+
+                    <td>
+                        {% if item['follow_up_status'] == 'Completed' %}
+                            <span class="normal-label">Completed</span>
+                        {% elif item['follow_up_status'] == 'In Progress' %}
+                            <span class="attention-label">In Progress</span>
+                        {% else %}
+                            <span class="attention-label">Pending</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <a
+                            class="view-link"
+                            href="{{ url_for('student_detail', record_id=item['record_id']) }}">
+                            View Student →
+                        </a>
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <div class="empty-message">
+        No interventions have been recorded yet.
+        Open a student profile to record the first faculty intervention.
+    </div>
+
+    {% endif %}
+
+</section>
+
+{% endblock %}

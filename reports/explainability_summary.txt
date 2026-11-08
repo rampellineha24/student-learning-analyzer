@@ -1,0 +1,24 @@
+MODEL EXPLAINABILITY REPORT
+============================================================
+
+Model: Random Forest
+Baseline Macro F1: 0.4288
+Test records: 4911
+
+PERMUTATION FEATURE IMPORTANCE
+------------------------------------------------------------
+                  Feature  Importance Mean  Importance Std
+early_on_time_submissions         0.088420        0.006404
+              code_module         0.043531        0.005844
+        early_active_days         0.036279        0.003813
+       early_total_clicks         0.022482        0.000905
+   early_late_submissions         0.013196        0.005038
+        code_presentation         0.009396        0.002195
+          studied_credits         0.001904        0.004011
+               cutoff_day         0.000352        0.001917
+     num_of_prev_attempts        -0.000746        0.002637
+
+Interpretation:
+Features with larger positive importance values contribute more to the model's predictive performance.
+Importance measures predictive contribution, not causation.
+Negative or near-zero values indicate that shuffling a feature did not reduce performance in this evaluation.

@@ -1,0 +1,26 @@
+BEST MODEL: Random Forest
+
+MODEL COMPARISON
+              Model  Accuracy  Macro Precision  Macro Recall  Macro F1  Weighted F1  Training Time (seconds)
+      Random Forest  0.568112         0.435402      0.426568  0.428778     0.558058                 2.247030
+Logistic Regression  0.449603         0.432141      0.469291  0.416075     0.472528                 1.011786
+      Decision Tree  0.428222         0.406696      0.430692  0.389104     0.453887                 0.371442
+
+CLASSIFICATION REPORT
+              precision    recall  f1-score   support
+
+        Pass       0.65      0.71      0.68      2421
+        Fail       0.62      0.59      0.60      1426
+ Distinction       0.30      0.29      0.29       609
+   Withdrawn       0.18      0.12      0.14       455
+
+    accuracy                           0.57      4911
+   macro avg       0.44      0.43      0.43      4911
+weighted avg       0.55      0.57      0.56      4911
+
+CONFUSION MATRIX
+             Pass  Fail  Distinction  Withdrawn
+Pass         1718   283          329         91
+Fail          399   843           53        131
+Distinction   380    35          176         18
+Withdrawn     164   208           30         53

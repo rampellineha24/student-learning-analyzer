@@ -1,0 +1,174 @@
+﻿
+{% extends "base.html" %}
+
+{% block title %}Students | Student Learning Support{% endblock %}
+{% block page_heading %}Students{% endblock %}
+{% block page_subtitle %}Monitor student learning performance and predicted outcomes{% endblock %}
+
+{% block content %}
+
+<section class="panel students-panel">
+
+    <div class="panel-heading">
+        <div>
+            <h3>Student Records</h3>
+            <p>{{ total_filtered }} student records found</p>
+        </div>
+
+        <span class="record-count">
+            {{ total_filtered }} records
+        </span>
+    </div>
+
+    <form method="GET"
+          action="{{ url_for('students_page') }}"
+          class="filter-form">
+
+        <input
+            type="text"
+            name="search"
+            placeholder="Enter student ID..."
+            value="{{ search }}">
+
+        <select name="outcome">
+
+            <option value="All"
+                {% if selected_outcome == 'All' %}selected{% endif %}>
+                All Outcomes
+            </option>
+
+            {% for name in class_names %}
+
+            <option value="{{ name }}"
+                {% if selected_outcome == name %}selected{% endif %}>
+                {{ name }}
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+        <button type="submit" class="primary-button">
+            Apply Filters
+        </button>
+
+        <a href="{{ url_for('students_page') }}" class="reset-link">
+            Reset
+        </a>
+
+    </form>
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Course Module</th>
+                    <th>Presentation</th>
+                    <th>Predicted Outcome</th>
+                    <th>Risk Status</th>
+                    <th>Confidence</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for student in students %}
+
+                <tr>
+
+                    <td><strong>{{ student.student_id }}</strong></td>
+
+                    <td>{{ student.module }}</td>
+
+                    <td>{{ student.presentation }}</td>
+
+                    <td>
+                        <span class="outcome-badge {{ student.predicted_outcome|lower }}">
+                            {{ student.predicted_outcome }}
+                        </span>
+                    </td>
+
+                    <td>
+
+                        {% if student.needs_attention %}
+
+                        <span class="attention-label">
+                            Needs Attention
+                        </span>
+
+                        {% else %}
+
+                        <span class="normal-label">
+                            Normal
+                        </span>
+
+                        {% endif %}
+
+                    </td>
+
+                    <td>{{ student.confidence }}%</td>
+
+                    <td>
+                        <a class="view-link"
+                           href="{{ url_for('student_detail', record_id=student.record_id) }}">
+                            View Details →
+                        </a>
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+                    <td colspan="7" class="empty-message">
+                        No student records found.
+                    </td>
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <div class="pagination">
+
+        <span>Page {{ page }} of {{ total_pages }}</span>
+
+        <div>
+
+            {% if page > 1 %}
+
+            <a href="{{ url_for('students_page',
+                page=page-1,
+                search=search,
+                outcome=selected_outcome) }}">
+                ← Previous
+            </a>
+
+            {% endif %}
+
+            {% if page < total_pages %}
+
+            <a href="{{ url_for('students_page',
+                page=page+1,
+                search=search,
+                outcome=selected_outcome) }}">
+                Next →
+            </a>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

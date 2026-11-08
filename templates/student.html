@@ -1,0 +1,348 @@
+
+{% extends "base.html" %}
+
+{% block title %}Student Details | Student Learning Support{% endblock %}
+{% block page_heading %}Student Details{% endblock %}
+{% block page_subtitle %}Individual student prediction and academic support information{% endblock %}
+
+{% block content %}
+
+<div class="detail-container">
+
+    <a href="{{ url_for('students_page') }}" class="back-link">
+        ← Back to Students
+    </a>
+
+    <header class="detail-header">
+
+        <div>
+            <p class="eyebrow">STUDENT PROFILE</p>
+
+            <h1>Student {{ student.student_id }}</h1>
+
+            <p>
+                Module: {{ student.code_module }}
+                &nbsp; | &nbsp;
+                Presentation: {{ student.code_presentation }}
+            </p>
+        </div>
+
+        <span class="outcome-badge {{ student.predicted_outcome|lower }}">
+            {{ student.predicted_outcome }}
+        </span>
+
+    </header>
+
+
+    <!-- PREDICTED OUTCOME -->
+
+    <section class="panel">
+
+        <h2>Predicted Academic Outcome</h2>
+
+        <p class="section-description">
+            Outcome predicted using the student's early learning
+            activity and assessment submission information.
+        </p>
+
+        <div class="probability-list">
+
+            {% for outcome, probability in probabilities.items() %}
+
+            <div class="probability-item">
+
+                <div class="probability-heading">
+                    <span>{{ outcome }}</span>
+                    <strong>{{ probability }}%</strong>
+                </div>
+
+                <div class="progress-track">
+
+                    <div
+                        class="progress-fill {{ outcome|lower }}"
+                        data-width="{{ probability }}">
+                    </div>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+        {% if student.needs_attention %}
+
+        <div class="attention-notice">
+
+            <strong>Faculty review suggested</strong>
+
+            <p>
+                The model predicted {{ student.predicted_outcome }}.
+                Consider reviewing the student's learning progress
+                and providing support where appropriate.
+            </p>
+
+        </div>
+
+        {% else %}
+
+        <div class="normal-notice">
+            No Fail or Withdrawn prediction was generated.
+            Continue monitoring the student's progress.
+        </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- EARLY LEARNING INDICATORS -->
+
+    <section class="panel">
+
+        <h2>Early Learning Indicators</h2>
+
+        <p class="section-description">
+            Information recorded up to the first 50% of the course.
+        </p>
+
+        <div class="indicator-grid">
+
+            <div class="indicator-card">
+                <span>Early LMS Clicks</span>
+                <strong>{{ student.early_total_clicks }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Active LMS Days</span>
+                <strong>{{ student.early_active_days }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>On-time Submissions</span>
+                <strong>{{ student.early_on_time_submissions }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Late Submissions</span>
+                <strong>{{ student.early_late_submissions }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Previous Attempts</span>
+                <strong>{{ student.num_of_prev_attempts }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Studied Credits</span>
+                <strong>{{ student.studied_credits }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Course Cutoff Day</span>
+                <strong>{{ student.cutoff_day }}</strong>
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- INTERVENTION FORM -->
+
+    <section class="panel">
+
+        <h2>Record Faculty Intervention</h2>
+
+        <p class="section-description">
+            Record academic support provided to this student.
+        </p>
+
+        <form
+            method="POST"
+            action="{{ url_for('add_intervention', record_id=student.record_id) }}"
+            class="intervention-form">
+
+            <div class="form-group">
+
+                <label for="intervention_type">
+                    Intervention Type
+                </label>
+
+                <select
+                    id="intervention_type"
+                    name="intervention_type"
+                    required>
+
+                    <option value="">Select intervention</option>
+                    <option value="Academic Counselling">Academic Counselling</option>
+                    <option value="Assignment Support">Assignment Support</option>
+                    <option value="Study Plan">Study Plan</option>
+                    <option value="Faculty Meeting">Faculty Meeting</option>
+                    <option value="Additional Learning Resources">Additional Learning Resources</option>
+                    <option value="Other">Other</option>
+
+                </select>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="intervention_date">
+                    Intervention Date
+                </label>
+
+                <input
+                    type="date"
+                    id="intervention_date"
+                    name="intervention_date"
+                    required>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="follow_up_status">
+                    Follow-up Status
+                </label>
+
+                <select
+                    id="follow_up_status"
+                    name="follow_up_status"
+                    required>
+
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+
+                </select>
+
+            </div>
+
+
+            <div class="form-group full-width">
+
+                <label for="faculty_remarks">
+                    Faculty Remarks
+                </label>
+
+                <textarea
+                    id="faculty_remarks"
+                    name="faculty_remarks"
+                    rows="4"
+                    placeholder="Enter the support provided and observations..."
+                    required></textarea>
+
+            </div>
+
+
+            <button type="submit" class="primary-button">
+                Save Intervention
+            </button>
+
+        </form>
+
+    </section>
+
+
+    <!-- INTERVENTION HISTORY -->
+
+    <section class="panel">
+
+        <h2>Intervention History</h2>
+
+        <p class="section-description">
+            Previously recorded faculty support actions.
+        </p>
+
+        {% if interventions %}
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Intervention</th>
+                        <th>Faculty Remarks</th>
+                        <th>Follow-up</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for item in interventions %}
+
+                    <tr>
+                        <td>{{ item['intervention_date'] }}</td>
+                        <td>{{ item['intervention_type'] }}</td>
+                        <td>{{ item['faculty_remarks'] }}</td>
+                        <td>{{ item['follow_up_status'] }}</td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <p class="empty-message">
+            No intervention records available for this student.
+        </p>
+
+        {% endif %}
+
+    </section>
+
+
+    <div class="disclaimer">
+
+        <strong>Important:</strong>
+
+        These are model-generated predictions, not confirmed academic
+        results. They should be used only as advisory information.
+        Faculty should review additional context before making
+        academic decisions.
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const progressBars = document.querySelectorAll(".progress-fill");
+
+    progressBars.forEach(function (bar) {
+
+        const probability = Number(bar.dataset.width);
+
+        if (Number.isFinite(probability)) {
+
+            const safeWidth = Math.min(100, Math.max(0, probability));
+
+            bar.style.width = safeWidth + "%";
+
+        }
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

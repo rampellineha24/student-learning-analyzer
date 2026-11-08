@@ -1,0 +1,38 @@
+CANDIDATE FEATURE SELECTION REPORT
+======================================================================
+
+Original dataset shape: (24592, 19)
+Candidate dataset shape: (24592, 11)
+
+SELECTED MODEL FEATURES:
+1. code_module
+2. code_presentation
+3. cutoff_day
+4. num_of_prev_attempts
+5. studied_credits
+6. early_total_clicks
+7. early_active_days
+8. early_on_time_submissions
+9. early_late_submissions
+
+GROUPING IDENTIFIER:
+id_student
+
+PREDICTION TARGET:
+final_result
+
+EXCLUDED FEATURES:
+module_presentation_length
+early_submitted_assessments
+gender
+region
+highest_education
+imd_band
+age_band
+disability
+
+Demographic variables are reserved for separate fairness evaluation.
+
+Student identifiers are retained only for grouped data splitting and are not model inputs.
+
+This is a candidate baseline dataset. Further preprocessing and validation are required.

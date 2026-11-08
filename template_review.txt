@@ -1,0 +1,836 @@
+﻿========== DASHBOARD.HTML ==========
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Dashboard | Student Learning Support</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+<div class="layout">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">S</div>
+            <div>
+                <h2>Student Support</h2>
+                <small>Learning Analytics</small>
+            </div>
+        </div>
+
+        <nav>
+            <a href="{{ url_for('dashboard') }}" class="nav-link active">
+                <span>â–¦</span> Dashboard
+            </a>
+            <a href="#students" class="nav-link">
+                <span>â™™</span> Students
+            </a>
+            <a href="#explainability" class="nav-link">
+                <span>â—ˆ</span> Model Insights
+            </a>
+            <a href="#interventions" class="nav-link">
+                <span>â˜·</span> Interventions
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="status-dot"></div>
+            Local prototype
+        </div>
+    </aside>
+
+    <main class="main-content">
+
+        <header class="topbar">
+            <div>
+                <h1>Faculty Dashboard</h1>
+                <p>Student learning progress and support overview</p>
+            </div>
+
+            <div class="faculty-profile">
+                <div class="profile-avatar">F</div>
+                <div>
+                    <strong>Faculty</strong>
+                    <small>Academic Support</small>
+                </div>
+            </div>
+        </header>
+
+        <section class="welcome-section">
+            <div>
+                <h2>Welcome to the Student Learning Support System</h2>
+                <p>
+                    Monitor predicted student outcomes and coordinate
+                    timely academic support.
+                </p>
+            </div>
+            <div class="welcome-icon">âœ¦</div>
+        </section>
+
+        <!-- SUMMARY CARDS -->
+        <section class="stats-grid">
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Total Student Records</span>
+                    <span class="stat-icon blue">â™™</span>
+                </div>
+                <h2>{{ total_students }}</h2>
+                <small>Student-course records analysed</small>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Predicted Pass</span>
+                    <span class="stat-icon green">âœ“</span>
+                </div>
+                <h2>{{ outcome_counts.get('Pass', 0) }}</h2>
+                <small>Predicted successful outcomes</small>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Needs Attention</span>
+                    <span class="stat-icon orange">!</span>
+                </div>
+                <h2>{{ attention_count }}</h2>
+                <small>Predicted Fail or Withdrawn</small>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Interventions</span>
+                    <span class="stat-icon purple">â˜·</span>
+                </div>
+                <h2>{{ intervention_count }}</h2>
+                <small>Faculty support actions recorded</small>
+            </div>
+
+        </section>
+
+        <!-- OUTCOME CHARTS -->
+        <section class="chart-grid">
+
+            <div class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Predicted Outcome Distribution</h3>
+                        <p>Distribution of model predictions</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas
+                        id="outcomeChart"
+                        data-labels="{{ class_names | tojson | forceescape }}"
+                        data-values="{{ outcome_counts.values() | list | tojson | forceescape }}">
+                    </canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Outcome Summary</h3>
+                        <p>Predicted student-course records</p>
+                    </div>
+                </div>
+
+                <div class="outcome-list">
+                    {% for outcome in class_names %}
+                    <div class="outcome-row">
+                        <span class="outcome-dot {{ outcome|lower }}"></span>
+                        <span>{{ outcome }}</span>
+                        <strong>{{ outcome_counts.get(outcome, 0) }}</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </section>
+
+        <!-- STUDENT TABLE -->
+        <section class="panel students-panel" id="students">
+
+            <div class="panel-heading">
+                <div>
+                    <h3>Student Records</h3>
+                    <p>Review individual predictions and student activity</p>
+                </div>
+
+                <span class="record-count">
+                    {{ total_filtered }} records
+                </span>
+            </div>
+
+            <form method="GET"
+                  action="{{ url_for('dashboard') }}"
+                  class="filter-form">
+
+                <input
+                    type="text"
+                    name="search"
+                    placeholder="Search student ID..."
+                    value="{{ search }}">
+
+                <select name="outcome">
+                    <option value="All"
+                        {% if selected_outcome == 'All' %}selected{% endif %}>
+                        All Outcomes
+                    </option>
+
+                    {% for outcome in class_names %}
+                    <option value="{{ outcome }}"
+                        {% if selected_outcome == outcome %}selected{% endif %}>
+                        {{ outcome }}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit" class="primary-button">
+                    Apply Filters
+                </button>
+
+                <a href="{{ url_for('dashboard') }}" class="reset-link">
+                    Reset
+                </a>
+            </form>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>Module</th>
+                            <th>Presentation</th>
+                            <th>Predicted Outcome</th>
+                            <th>Top Predicted Probability</th>
+                            <th>Attention</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td><strong>{{ student.student_id }}</strong></td>
+                            <td>{{ student.module }}</td>
+                            <td>{{ student.presentation }}</td>
+
+                            <td>
+                                <span class="outcome-badge {{ student.predicted_outcome|lower }}">
+                                    {{ student.predicted_outcome }}
+                                </span>
+                            </td>
+
+                            <td>{{ student.confidence }}%</td>
+
+                            <td>
+                                {% if student.needs_attention %}
+                                    <span class="attention-label">Review</span>
+                                {% else %}
+                                    <span class="normal-label">No flag</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <a class="view-link"
+                                   href="{{ url_for('student_detail', record_id=student.record_id) }}">
+                                    View Details â†’
+                                </a>
+                            </td>
+                        </tr>
+
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="empty-message">
+                                No matching student records found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PAGINATION -->
+            <div class="pagination">
+                <span>Page {{ page }} of {{ total_pages }}</span>
+
+                <div>
+                    {% if page > 1 %}
+                    <a href="{{ url_for('dashboard',
+                        page=page-1,
+                        search=search,
+                        outcome=selected_outcome) }}">
+                        â† Previous
+                    </a>
+                    {% endif %}
+
+                    {% if page < total_pages %}
+                    <a href="{{ url_for('dashboard',
+                        page=page+1,
+                        search=search,
+                        outcome=selected_outcome) }}">
+                        Next â†’
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        </section>
+
+        <!-- EXPLAINABILITY -->
+        <section class="panel insights-panel" id="explainability">
+
+            <div class="panel-heading">
+                <div>
+                    <h3>Model Explainability</h3>
+                    <p>Global permutation feature importance</p>
+                </div>
+            </div>
+
+            {% if importance_data %}
+            <div class="chart-container importance-chart">
+                <canvas
+                    id="importanceChart"
+                    data-labels="{{ importance_data | map(attribute='Feature') | list | tojson | forceescape }}"
+                    data-values="{{ importance_data | map(attribute='Importance Mean') | list | tojson | forceescape }}">
+                </canvas>
+            </div>
+            {% else %}
+            <p>Feature importance report is not available.</p>
+            {% endif %}
+
+            <p class="note">
+                Feature importance describes predictive contribution
+                across the evaluation dataset. It does not establish
+                causation or explain an individual student's outcome.
+            </p>
+
+        </section>
+
+        <!-- RECENT INTERVENTIONS -->
+        <section class="panel" id="interventions">
+
+            <div class="panel-heading">
+                <div>
+                    <h3>Recent Faculty Interventions</h3>
+                    <p>Latest recorded support activities</p>
+                </div>
+            </div>
+
+            {% if recent_interventions %}
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student ID</th>
+                            <th>Intervention</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for item in recent_interventions %}
+                        <tr>
+                            <td>{{ item['student_id'] }}</td>
+                            <td>{{ item['intervention_type'] }}</td>
+                            <td>{{ item['intervention_date'] }}</td>
+                            <td>{{ item['follow_up_status'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% else %}
+            <div class="empty-message">
+                No interventions recorded yet.
+                Open a student record to add the first intervention.
+            </div>
+            {% endif %}
+
+        </section>
+
+        <footer class="footer">
+            Explainable Student Learning Support and Intervention Tracking System
+            <br>
+            <small>Academic decision-support prototype | OULAD dataset</small>
+        </footer>
+
+    </main>
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    // SIDEBAR NAVIGATION
+    const navLinks = document.querySelectorAll(".sidebar .nav-link");
+
+    navLinks.forEach(function (link) {
+        link.addEventListener("click", function (event) {
+
+            const href = link.getAttribute("href");
+
+            if (href === "{{ url_for('dashboard') }}") {
+                return;
+            }
+
+            if (href && href.startsWith("#")) {
+                event.preventDefault();
+
+                const target = document.querySelector(href);
+
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+
+                    navLinks.forEach(function (item) {
+                        item.classList.remove("active");
+                    });
+
+                    link.classList.add("active");
+
+                    history.replaceState(null, "", href);
+                }
+            }
+        });
+    });
+
+    // RESTORE SECTION FROM URL
+    function restoreNavigation() {
+        const hash = window.location.hash;
+
+        if (hash) {
+            const target = document.querySelector(hash);
+            const activeLink = document.querySelector(
+                '.sidebar .nav-link[href="' + hash + '"]'
+            );
+
+            if (target) {
+                target.scrollIntoView({ block: "start" });
+            }
+
+            if (activeLink) {
+                navLinks.forEach(link => link.classList.remove("active"));
+                activeLink.classList.add("active");
+            }
+        }
+    }
+
+    if (window.location.hash) {
+        setTimeout(restoreNavigation, 100);
+    }
+
+    // OUTCOME DISTRIBUTION CHART
+    const outcomeCanvas = document.getElementById("outcomeChart");
+
+    if (outcomeCanvas && typeof Chart !== "undefined") {
+        const outcomeLabels = JSON.parse(outcomeCanvas.dataset.labels);
+        const outcomeValues = JSON.parse(outcomeCanvas.dataset.values);
+
+        new Chart(outcomeCanvas, {
+            type: "doughnut",
+            data: {
+                labels: outcomeLabels,
+                datasets: [{
+                    data: outcomeValues,
+                    backgroundColor: [
+                        "#26966d",
+                        "#e3a33a",
+                        "#6478ce",
+                        "#d66a6a"
+                    ],
+                    borderWidth: 2,
+                    borderColor: "#ffffff"
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    }
+                }
+            }
+        });
+    }
+
+    // FEATURE IMPORTANCE CHART
+    const importanceCanvas = document.getElementById("importanceChart");
+
+    if (importanceCanvas && typeof Chart !== "undefined") {
+        const importanceLabels = JSON.parse(importanceCanvas.dataset.labels);
+        const importanceValues = JSON.parse(importanceCanvas.dataset.values);
+
+        new Chart(importanceCanvas, {
+            type: "bar",
+            data: {
+                labels: importanceLabels,
+                datasets: [{
+                    label: "Importance Mean",
+                    data: importanceValues,
+                    backgroundColor: "#6478ce",
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Decrease in Macro F1"
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+});
+
+</script>
+
+</body>
+</html>
+========== STUDENT.HTML ==========
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Details | Student Support</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<div class="detail-container">
+
+    <a href="{{ url_for('dashboard') }}" class="back-link">
+        â† Back to Dashboard
+    </a>
+
+    <header class="detail-header">
+        <div>
+            <p class="eyebrow">STUDENT PROFILE</p>
+            <h1>Student {{ student.student_id }}</h1>
+
+            <p>
+                Module: {{ student.code_module }}
+                &nbsp; | &nbsp;
+                Presentation: {{ student.code_presentation }}
+            </p>
+        </div>
+
+        <span class="outcome-badge {{ student.predicted_outcome|lower }}">
+            {{ student.predicted_outcome }}
+        </span>
+    </header>
+
+    <!-- FLASH MESSAGES -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="flash-message {{ category }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endwith %}
+
+    <!-- PREDICTION -->
+    <section class="panel">
+
+        <h2>Predicted Academic Outcome</h2>
+
+        <p class="section-description">
+            Outcome predicted using the student's early learning
+            activity and assessment submission information.
+        </p>
+
+        <div class="probability-list">
+
+            {% for outcome, probability in probabilities.items() %}
+            <div class="probability-item">
+
+                <div class="probability-heading">
+                    <span>{{ outcome }}</span>
+                    <strong>{{ probability }}%</strong>
+                </div>
+
+                <div class="progress-track">
+                    <div
+                        class="progress-fill {{ outcome|lower }}"
+                        data-width="{{ probability }}">
+                    </div>
+                </div>
+
+            </div>
+            {% endfor %}
+
+        </div>
+
+        {% if student.needs_attention %}
+        <div class="attention-notice">
+            <strong>Faculty review suggested</strong>
+
+            <p>
+                The model predicted {{ student.predicted_outcome }}.
+                Consider reviewing the student's learning progress
+                and providing support where appropriate.
+            </p>
+        </div>
+        {% else %}
+        <div class="normal-notice">
+            No Fail or Withdrawn prediction was generated.
+            Continue monitoring the student's progress.
+        </div>
+        {% endif %}
+
+    </section>
+
+    <!-- EARLY LEARNING INDICATORS -->
+    <section class="panel">
+
+        <h2>Early Learning Indicators</h2>
+
+        <p class="section-description">
+            Information recorded up to the first 50% of the course.
+        </p>
+
+        <div class="indicator-grid">
+
+            <div class="indicator-card">
+                <span>Early LMS Clicks</span>
+                <strong>{{ student.early_total_clicks }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Active LMS Days</span>
+                <strong>{{ student.early_active_days }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>On-time Submissions</span>
+                <strong>{{ student.early_on_time_submissions }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Late Submissions</span>
+                <strong>{{ student.early_late_submissions }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Previous Attempts</span>
+                <strong>{{ student.num_of_prev_attempts }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Studied Credits</span>
+                <strong>{{ student.studied_credits }}</strong>
+            </div>
+
+            <div class="indicator-card">
+                <span>Course Cutoff Day</span>
+                <strong>{{ student.cutoff_day }}</strong>
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- INTERVENTION FORM -->
+    <section class="panel">
+
+        <h2>Record Faculty Intervention</h2>
+
+        <p class="section-description">
+            Record academic support provided to this student.
+        </p>
+
+        <form
+            method="POST"
+            action="{{ url_for('add_intervention', record_id=student.record_id) }}"
+            class="intervention-form">
+
+            <div class="form-group">
+
+                <label for="intervention_type">
+                    Intervention Type
+                </label>
+
+                <select
+                    id="intervention_type"
+                    name="intervention_type"
+                    required>
+
+                    <option value="">Select intervention</option>
+                    <option value="Academic Counselling">Academic Counselling</option>
+                    <option value="Assignment Support">Assignment Support</option>
+                    <option value="Study Plan">Study Plan</option>
+                    <option value="Faculty Meeting">Faculty Meeting</option>
+                    <option value="Additional Learning Resources">Additional Learning Resources</option>
+                    <option value="Other">Other</option>
+
+                </select>
+
+            </div>
+
+            <div class="form-group">
+
+                <label for="intervention_date">
+                    Intervention Date
+                </label>
+
+                <input
+                    type="date"
+                    id="intervention_date"
+                    name="intervention_date"
+                    required>
+
+            </div>
+
+            <div class="form-group">
+
+                <label for="follow_up_status">
+                    Follow-up Status
+                </label>
+
+                <select
+                    id="follow_up_status"
+                    name="follow_up_status"
+                    required>
+
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+
+                </select>
+
+            </div>
+
+            <div class="form-group full-width">
+
+                <label for="faculty_remarks">
+                    Faculty Remarks
+                </label>
+
+                <textarea
+                    id="faculty_remarks"
+                    name="faculty_remarks"
+                    rows="4"
+                    placeholder="Enter the support provided and observations..."
+                    required></textarea>
+
+            </div>
+
+            <button type="submit" class="primary-button">
+                Save Intervention
+            </button>
+
+        </form>
+
+    </section>
+
+    <!-- INTERVENTION HISTORY -->
+    <section class="panel">
+
+        <h2>Intervention History</h2>
+
+        <p class="section-description">
+            Previously recorded faculty support actions.
+        </p>
+
+        {% if interventions %}
+
+        <div class="table-wrapper">
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Intervention</th>
+                        <th>Faculty Remarks</th>
+                        <th>Follow-up</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for item in interventions %}
+                    <tr>
+                        <td>{{ item['intervention_date'] }}</td>
+                        <td>{{ item['intervention_type'] }}</td>
+                        <td>{{ item['faculty_remarks'] }}</td>
+                        <td>{{ item['follow_up_status'] }}</td>
+                    </tr>
+                    {% endfor %}
+
+                </tbody>
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <p class="empty-message">
+            No intervention records available for this student.
+        </p>
+
+        {% endif %}
+
+    </section>
+
+    <div class="disclaimer">
+        <strong>Important:</strong>
+        These are model-generated predictions, not confirmed academic
+        results. They should be used only as advisory information.
+        Faculty should review additional context before making
+        academic decisions.
+    </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    // Set the width of each prediction probability bar.
+    const progressBars = document.querySelectorAll(".progress-fill");
+
+    progressBars.forEach(function (bar) {
+        const probability = Number(bar.dataset.width);
+
+        if (Number.isFinite(probability)) {
+            const safeWidth = Math.min(100, Math.max(0, probability));
+            bar.style.width = safeWidth + "%";
+        }
+    });
+
+});
+
+</script>
+
+</body>
+</html>

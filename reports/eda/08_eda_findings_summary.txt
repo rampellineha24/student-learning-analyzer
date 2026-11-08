@@ -1,0 +1,37 @@
+STUDENT LEARNING SUPPORT SYSTEM
+EXPLORATORY DATA ANALYSIS SUMMARY
+============================================================
+
+Dataset shape: (24592, 19)
+
+1. FINAL RESULT DISTRIBUTION
+              Student Count  Percentage
+final_result                           
+Pass                  12360       50.26
+Fail                   7038       28.62
+Distinction            3024       12.30
+Withdrawn              2170        8.82
+
+2. EARLY LMS ACTIVITY SUMMARY
+              Mean_Clicks  Median_Clicks  Mean_Active_Days  Median_Active_Days
+final_result                                                                  
+Distinction       1395.74          951.0             57.41                55.0
+Fail               430.34          236.0             22.41                17.0
+Pass              1004.16          671.0             46.84                42.0
+Withdrawn          579.21          371.0             30.60                25.0
+
+3. ASSESSMENT SUBMISSION SUMMARY
+              Mean_Submissions  Median_Submissions  Mean_On_Time  Mean_Late
+final_result                                                               
+Distinction               4.45                 4.0          3.53       0.92
+Fail                      2.50                 2.0          1.60       0.90
+Pass                      4.30                 4.0          3.24       1.06
+Withdrawn                 2.89                 3.0          1.71       1.18
+
+4. OUTLIER SUMMARY
+                    Feature  Outlier Count  Outlier Percentage
+         early_total_clicks           1801                7.32
+          early_active_days            194                0.79
+early_submitted_assessments             85                0.35
+
+EDA SUMMARY COMPLETED
